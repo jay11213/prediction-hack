@@ -1,103 +1,65 @@
-const $ = (id) => document.getElementById(id);
-const tg = window.Telegram?.WebApp;
-if (tg) { tg.ready(); tg.expand(); }
+let currentPeriod = "";
 
-let countdown = 0;
-let timerHandle;
-
-function show(view) {
-  $("loginView").classList.toggle("hidden", view !== "login");
-  $("dashboardView").classList.toggle("hidden", view !== "dashboard");
-}
-
-async function api(url, options = {}) {
-  const response = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Request failed");
-  return data;
-}
-
-$("loginForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  $("loginError").textContent = "";
+async function fetchGameData() {
   try {
-    await api("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        userId: $("userId").value,
-        password: $("password").value,
-        telegramInitData: tg?.initData || ""
-      })
-    });
-    show("dashboard");
-    await loadDashboard();
-  } catch (error) {
-    $("loginError").textContent = error.message;
+    const response = await fetch('/api/game-data');
+    const result = await response.json();
+    
+    if (result && result.data && result.data.length > 0) {
+      const latest = result.data[0];
+      
+      // Update real period number (incrementing by 1 for current active round)
+      const latestIssue = BigInt(latest.issueNumber);
+      currentPeriod = (latestIssue + 1n).toString();
+      
+      const periodElem = document.getElementById('period') || document.getElementById('current-period');
+      if (periodElem) periodElem.innerText = currentPeriod;
+
+      // Render history table
+      renderHistory(result.data);
+    }
+  } catch (err) {
+    console.error("Error fetching game data:", err);
   }
-});
-
-$("logoutBtn").addEventListener("click", async () => {
-  await api("/api/auth/logout", { method: "POST" });
-  clearInterval(timerHandle);
-  show("login");
-});
-
-function render(data) {
-  $("winRate").textContent = `${data.stats.winRate}%`;
-  $("jackpots").textContent = data.stats.jackpots;
-  $("total").textContent = data.stats.total;
-  $("period").textContent = data.current.period;
-  $("predictionType").textContent = data.current.prediction.type;
-  $("confidence").textContent = `${data.current.prediction.confidence}%`;
-  $("confirmation").textContent = data.current.prediction.confirmation;
-  $("numbers").innerHTML = data.current.prediction.numbers
-    .map(n => `<div class="number">${n}</div>`).join("");
-
-  $("historyBody").innerHTML = data.history.map(row => `
-    <tr>
-      <td>${row.period}</td>
-      <td>${row.actualResult ?? "—"}</td>
-      <td>${row.predictedType}</td>
-      <td class="status-${row.status}">${row.status === "WIN" ? "WIN ✓" : row.status === "JACKPOT" ? "JACKPOT ★" : row.status === "LOSS" ? "LOSS" : "PENDING"}</td>
-    </tr>
-  `).join("");
-
-  countdown = data.current.countdown;
-  updateTimer();
 }
 
-function updateTimer() {
-  const safe = Math.max(0, countdown);
-  $("countdown").textContent = `00:${String(safe).padStart(2, "0")}`;
+function renderHistory(historyData) {
+  const historyElem = document.getElementById('history') || document.getElementById('prediction-history');
+  if (!historyElem) return;
+
+  historyElem.innerHTML = historyData.slice(0, 10).map(item => {
+    const num = parseInt(item.number, 10);
+    const resultType = num >= 5 ? 'BIG' : 'SMALL';
+    const statusClass = num >= 5 ? 'win' : 'loss';
+
+    return `
+      <div class="history-item">
+        <span>Period: ${item.issueNumber}</span>
+        <span>Number: ${item.number}</span>
+        <span class="status ${statusClass}">${resultType}</span>
+      </div>
+    `;
+  }).join('');
 }
+
+// 60-second timer countdown sync for WinGo 1 Min
 function startTimer() {
-  clearInterval(timerHandle);
-  timerHandle = setInterval(() => {
-    countdown -= 1;
-    if (countdown <= 0) loadDashboard();
-    updateTimer();
+  setInterval(() => {
+    const now = new Date();
+    const secondsLeft = 60 - now.getSeconds();
+    
+    const timerElem = document.getElementById('timer') || document.getElementById('countdown');
+    if (timerElem) {
+      timerElem.innerText = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft}`;
+    }
+
+    // Refresh game data at the start of each new minute
+    if (secondsLeft === 59) {
+      fetchGameData();
+    }
   }, 1000);
 }
-async function loadDashboard() {
-  try {
-    const data = await api("/api/dashboard");
-    render(data);
-    startTimer();
-  } catch (error) {
-    if (error.message.includes("authenticated") || error.message.includes("Session")) show("login");
-    console.error(error);
-  }
-}
 
-(async function boot() {
-  try {
-    await api("/api/me");
-    show("dashboard");
-    await loadDashboard();
-  } catch {
-    show("login");
-  }
-})();
+// Initial fetch and start timer
+fetchGameData();
+startTimer();

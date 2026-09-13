@@ -48,12 +48,12 @@ app.post('/api/inject-data', (req, res) => {
   return res.status(400).json({ status: "error" });
 });
 
-// Endpoint serving data to app.js
+// Endpoint serving data to app.js (Restored original expected array format)
 app.get('/api/game-data', (req, res) => {
   if (latestLiveStore.length > 0) {
-    return res.json({ code: 0, data: latestLiveStore });
+    return res.json(latestLiveStore);
   }
-  return res.json({ code: -1, message: "Waiting for Tampermonkey relay..." });
+  return res.json([]);
 });
 
 app.get('*', (req, res) => {

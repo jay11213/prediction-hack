@@ -39,34 +39,57 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Fetch Live Data for Veer Games 1-Min
+// Direct Browser Fetch to Veer Games via CORS Bridge
 async function fetchGameData() {
-  try {
-    const response = await fetch('/api/game-data');
-    const json = await response.json();
-    
-    const list = json.data?.list || json.data || json;
-    
-    if (Array.isArray(list) && list.length > 0) {
-      const latest = list[0];
-      const rawIssue = String(latest.issueNumber || latest.period || "0");
-      
-      // Compute upcoming period for Veer Games 1-Minute
-      const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
-      currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
-      
-      const periodElem = document.getElementById('period');
-      if (periodElem) periodElem.innerText = currentPeriod;
+  let list = [];
 
-      updatePredictionUI(list);
-      renderHistory(list);
+  try {
+    const targetUrl = encodeURIComponent('https://www.veergame38.com/api/webapi/GetNoHeaderList');
+    // Using CORS bridge to fetch live database results straight from browser
+    const res = await fetch(`https://api.allorigins.win/post?url=${targetUrl}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ typeId: 1, pageSize: 10, pageNo: 1 })
+    });
+
+    const wrapper = await res.json();
+    if (wrapper && wrapper.contents) {
+      const parsed = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
+      list = parsed.data?.list || parsed.data || [];
     }
   } catch (err) {
-    console.error("Error fetching game data:", err);
+    console.error("Browser-side proxy fetch error:", err);
+  }
+
+  // Backup fetch to backend proxy if CORS bridge fails
+  if (!Array.isArray(list) || list.length === 0) {
+    try {
+      const res = await fetch('/api/game-data');
+      const json = await res.json();
+      list = json.data?.list || json.data || [];
+    } catch (e) {
+      console.error("Backend fetch error:", e);
+    }
+  }
+
+  // UI Renderer with Live Data
+  if (Array.isArray(list) && list.length > 0) {
+    const latest = list[0];
+    const rawIssue = String(latest.issueNumber || latest.period || "0");
+    
+    // Calculate upcoming 1-minute period
+    const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
+    currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
+    
+    const periodElem = document.getElementById('period');
+    if (periodElem) periodElem.innerText = currentPeriod;
+
+    updatePredictionUI(list);
+    renderHistory(list);
   }
 }
 
-// Prediction Logic
+// Prediction Signal Logic
 function updatePredictionUI(historyList) {
   if (!historyList || historyList.length < 1) return;
 
@@ -99,7 +122,7 @@ function updatePredictionUI(historyList) {
   if (backupElem) backupElem.innerText = backupNumbers.join(', ');
 }
 
-// Render Results History Table
+// History Renderer
 function renderHistory(historyData) {
   const historyBody = document.getElementById('historyBody');
   if (!historyBody) return;
@@ -163,3 +186,4 @@ function startTimer() {
     }
   }, 1000);
 }
+  

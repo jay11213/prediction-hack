@@ -11,13 +11,12 @@ let latestLiveStore = [];
 let predictionLog = []; 
 let currentActivePrediction = null; 
 
-// Receiver endpoint for real-time live data from Tampermonkey
+// Receiver endpoint for real-time live data
 app.post('/api/inject-data', (req, res) => {
   const data = req.body?.data?.list || req.body?.data || req.body?.list || [];
   if (Array.isArray(data) && data.length > 0) {
     let latestItem = data[0]; 
     
-    // Safely extract period and number using multiple fallback keys
     let latestPeriod = String(latestItem.issueNumber || latestItem.period || latestItem.gameNo || "");
     let latestNum = parseInt(latestItem.number ?? latestItem.price ?? latestItem.winningNumber ?? 0);
     
@@ -35,13 +34,13 @@ app.post('/api/inject-data', (req, res) => {
       };
       
       predictionLog.unshift(auditRecord);
-      if (predictionLog.length > 50) predictionLog.pop(); // Keep last 50 entries
+      if (predictionLog.length > 50) predictionLog.pop(); 
       console.log(`[AUDIT] Period ${latestPeriod} | Pred: ${auditRecord.predicted} | Actual: ${auditRecord.actual} (${latestNum}) -> ${auditRecord.status}`);
       
       currentActivePrediction = null;
     }
 
-    // 2. PREDICT: Lock in next prediction for the upcoming round
+    // 2. PREDICT: Lock in next prediction safely
     let nextPeriod = String(Number(latestPeriod) + 1);
     let nextChoice = (latestNum % 2 === 0) ? "Small" : "Big"; 
 

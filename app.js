@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
         loginView.classList.add("hidden");
         dashboardView.classList.remove("hidden");
         if (loginError) loginError.innerText = "";
+        
+        // Immediate fetch upon login & start timer
         fetchGameData();
         startTimer();
       } else {
@@ -49,10 +51,7 @@ async function fetchGameData() {
       const periodElem = document.getElementById('period');
       if (periodElem) periodElem.innerText = currentPeriod;
 
-      // Update basic dummy prediction signal based on last result
       updatePredictionSignal(latest);
-
-      // Render history into the table body
       renderHistory(result.data);
     }
   } catch (err) {
@@ -62,7 +61,7 @@ async function fetchGameData() {
 
 function updatePredictionSignal(latestItem) {
   const num = parseInt(latestItem.number, 10);
-  const predType = num % 2 === 0 ? "BIG" : "SMALL";
+  const predType = num >= 5 ? "BIG" : "SMALL";
   
   const predElem = document.getElementById('predictionType');
   const confElem = document.getElementById('confidence');
@@ -107,3 +106,6 @@ function startTimer() {
     }
   }, 1000);
 }
+
+// Initial fetch attempt outside login block
+fetchGameData();

@@ -7,7 +7,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const loginError = document.getElementById("loginError");
   const logoutBtn = document.getElementById("logoutBtn");
 
-  // Handle Login
   if (loginForm) {
     loginForm.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -27,7 +26,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Handle Logout
   if (logoutBtn) {
     logoutBtn.addEventListener("click", () => {
       dashboardView.classList.add("hidden");
@@ -41,44 +39,55 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Fetch Live Data from Veer Game using Proxy Bridge
 async function fetchGameData() {
+  let list = [];
+
+  // Attempt 1: Fetch via local server endpoint first
   try {
-    const targetUrl = encodeURIComponent('https://veergame38.com/api/webapi/GetNoHeaderList');
-    
-    // Cloudflare IP Block bypass proxy
-    const response = await fetch(`https://api.allorigins.win/post?url=${targetUrl}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ typeId: 1, pageSize: 10, pageNo: 1 })
-    });
-    
-    const wrapper = await response.json();
-    const json = JSON.parse(wrapper.contents);
-    const list = json.data?.list || json.data || json;
-    
-    if (Array.isArray(list) && list.length > 0) {
-      const latest = list[0];
-      const rawIssue = String(latest.issueNumber || latest.period || "0");
+    const res = await fetch('/api/game-data');
+    const json = await res.json();
+    list = json.data?.list || json.data || json;
+  } catch (err) {
+    console.warn("Server route failed, trying client CORS bridge...", err);
+  }
+
+  // Attempt 2: AllOrigins proxy fallback with safe double-parsing
+  if (!Array.isArray(list) || list.length === 0) {
+    try {
+      const targetUrl = encodeURIComponent('https://www.shreewin35.com/api/webapi/GetNoHeaderList');
+      const res = await fetch(`https://api.allorigins.win/get?url=${targetUrl}`);
+      const wrapper = await res.json();
       
-      // Calculate next 17-digit period
+      if (wrapper && wrapper.contents) {
+        let parsed = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
+        list = parsed.data?.list || parsed.data || parsed;
+      }
+    } catch (corsErr) {
+      console.error("CORS proxy fetch error:", corsErr);
+    }
+  }
+
+  // Update UI if list contains data
+  if (Array.isArray(list) && list.length > 0) {
+    const latest = list[0];
+    const rawIssue = String(latest.issueNumber || latest.period || "0");
+    
+    // Process period number safely
+    if (rawIssue !== "0") {
       const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
       currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
-      
-      const periodElem = document.getElementById('period');
-      if (periodElem) periodElem.innerText = currentPeriod;
-
-      updatePredictionUI(list);
-      renderHistory(list);
     }
-  } catch (err) {
-    console.error("Veergame data fetch error:", err);
+    
+    const periodElem = document.getElementById('period');
+    if (periodElem) periodElem.innerText = currentPeriod || rawIssue;
+
+    updatePredictionUI(list);
+    renderHistory(list);
   }
 }
 
-// Anti-Crowd Prediction Engine
 function updatePredictionUI(historyList) {
-  if (!historyList || historyList.length < 3) return;
+  if (!historyList || historyList.length < 1) return;
 
   const recent = historyList.slice(0, 5).map(item => parseInt(item.number || item.result || 0, 10));
   const bigCount = recent.filter(n => n >= 5).length;
@@ -109,7 +118,6 @@ function updatePredictionUI(historyList) {
   if (backupElem) backupElem.innerText = backupNumbers.join(', ');
 }
 
-// Render Results History Table
 function renderHistory(historyData) {
   const historyBody = document.getElementById('historyBody');
   if (!historyBody) return;
@@ -153,22 +161,21 @@ function renderHistory(historyData) {
   const winRateElem = document.getElementById('winRate');
   const jackpotsElem = document.getElementById('jackpots');
   
-  if (winRateElem) winRateElem.innerText = `${Math.round((totalWins / 10) * 100)}%`;
+  if (winRateElem) winRateElem.innerText = `${Math.round((totalWins / Math.min(10, historyData.length)) * 100)}%`;
   if (jackpotsElem) jackpotsElem.innerText = jackpotsCount;
 }
 
-// 60-Second Sync Timer
 function startTimer() {
   setInterval(() => {
     const now = new Date();
-    const secondsLeft = 60 - now.getSeconds();
+    const secondsLeft = 30 - (now.getSeconds() % 30);
     
     const timerElem = document.getElementById('countdown');
     if (timerElem) {
       timerElem.innerText = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft}`;
     }
 
-    if (secondsLeft === 59) {
+    if (secondsLeft === 29) {
       fetchGameData();
     }
   }, 1000);

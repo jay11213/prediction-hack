@@ -1,30 +1,41 @@
 let currentPeriod = "";
 
-// Login function
 document.addEventListener("DOMContentLoaded", () => {
-  const loginBtn = document.querySelector("button") || document.querySelector(".btn") || document.getElementById("loginBtn");
-  
-  if (loginBtn) {
-    loginBtn.addEventListener("click", (e) => {
+  const loginForm = document.getElementById("loginForm");
+  const loginView = document.getElementById("loginView");
+  const dashboardView = document.getElementById("dashboardView");
+  const loginError = document.getElementById("loginError");
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  // Handle Login
+  if (loginForm) {
+    loginForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const inputs = document.querySelectorAll("input");
-      const userId = inputs[0] ? inputs[0].value.trim() : "";
-      const password = inputs[1] ? inputs[1].value.trim() : "";
+      const userId = document.getElementById("userId").value.trim();
+      const password = document.getElementById("password").value.trim();
 
       if ((userId === "demo_user" || userId === "demo") && (password === "demo_pass" || password === "demo")) {
-        const loginContainer = document.querySelector(".card") || document.querySelector("form") || document.querySelector(".login-container");
-        if (loginContainer) loginContainer.style.display = "none";
-        
-        const dashboard = document.getElementById("dashboard") || document.querySelector(".dashboard");
-        if (dashboard) dashboard.style.display = "block";
+        loginView.classList.add("hidden");
+        dashboardView.classList.remove("hidden");
+        if (loginError) loginError.innerText = "";
+        fetchGameData();
+        startTimer();
       } else {
-        alert("Invalid User ID or Password. Use demo_user and demo_pass");
+        if (loginError) loginError.innerText = "Invalid User ID or Password";
       }
+    });
+  }
+
+  // Handle Logout
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      dashboardView.classList.add("hidden");
+      loginView.classList.remove("hidden");
     });
   }
 });
 
-// Fetch game data from server
+// Fetch live game data
 async function fetchGameData() {
   try {
     const response = await fetch('/api/game-data');
@@ -35,9 +46,13 @@ async function fetchGameData() {
       const latestIssue = BigInt(latest.issueNumber);
       currentPeriod = (latestIssue + 1n).toString();
       
-      const periodElem = document.getElementById('period') || document.getElementById('current-period');
+      const periodElem = document.getElementById('period');
       if (periodElem) periodElem.innerText = currentPeriod;
 
+      // Update basic dummy prediction signal based on last result
+      updatePredictionSignal(latest);
+
+      // Render history into the table body
       renderHistory(result.data);
     }
   } catch (err) {
@@ -45,32 +60,44 @@ async function fetchGameData() {
   }
 }
 
-function renderHistory(historyData) {
-  const historyElem = document.getElementById('history') || document.getElementById('prediction-history');
-  if (!historyElem) return;
+function updatePredictionSignal(latestItem) {
+  const num = parseInt(latestItem.number, 10);
+  const predType = num % 2 === 0 ? "BIG" : "SMALL";
+  
+  const predElem = document.getElementById('predictionType');
+  const confElem = document.getElementById('confidence');
+  
+  if (predElem) predElem.innerText = predType;
+  if (confElem) confElem.innerText = `${85 + (num % 10)}%`;
+}
 
-  historyElem.innerHTML = historyData.slice(0, 10).map(item => {
+function renderHistory(historyData) {
+  const historyBody = document.getElementById('historyBody');
+  if (!historyBody) return;
+
+  historyBody.innerHTML = historyData.slice(0, 10).map(item => {
     const num = parseInt(item.number, 10);
     const resultType = num >= 5 ? 'BIG' : 'SMALL';
     const statusClass = num >= 5 ? 'win' : 'loss';
 
     return `
-      <div class="history-item">
-        <span>Period: ${item.issueNumber}</span>
-        <span>Number: ${item.number}</span>
-        <span class="status ${statusClass}">${resultType}</span>
-      </div>
+      <tr>
+        <td>${item.issueNumber}</td>
+        <td>${item.number} (${resultType})</td>
+        <td>${resultType}</td>
+        <td><span class="status ${statusClass}">${resultType === 'BIG' ? 'WIN' : 'LOSS'}</span></td>
+      </tr>
     `;
   }).join('');
 }
 
-// Timer countdown
+// Synchronized 60-second timer
 function startTimer() {
   setInterval(() => {
     const now = new Date();
     const secondsLeft = 60 - now.getSeconds();
     
-    const timerElem = document.getElementById('timer') || document.getElementById('countdown');
+    const timerElem = document.getElementById('countdown');
     if (timerElem) {
       timerElem.innerText = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft}`;
     }
@@ -80,6 +107,3 @@ function startTimer() {
     }
   }, 1000);
 }
-
-fetchGameData();
-startTimer();

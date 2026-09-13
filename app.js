@@ -41,52 +41,42 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Fetch live game data directly from browser to bypass Railway server IP blocks
+// Fetch Live Data from Veer Game using Proxy Bridge
 async function fetchGameData() {
-  let list = [];
-
   try {
-    // Attempt 1: Direct client-side fetch from live site
-    const response = await fetch('https://veergame38.com/api/webapi/GetNoHeaderList', {
+    const targetUrl = encodeURIComponent('https://veergame38.com/api/webapi/GetNoHeaderList');
+    
+    // Cloudflare IP Block bypass proxy
+    const response = await fetch(`https://api.allorigins.win/post?url=${targetUrl}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json;datatype=json',
-        'Accept': 'application/json, text/plain, */*'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ typeId: 1, pageSize: 10, pageNo: 1 })
     });
     
-    const json = await response.json();
-    list = json.data?.list || json.data || json;
-  } catch (err) {
-    console.warn("Direct fetch blocked or CORS restricted. Trying server proxy route...", err);
-    try {
-      // Attempt 2: Server-side proxy fallback
-      const response = await fetch('/api/game-data');
-      const json = await response.json();
-      list = json.data?.list || json.data || json;
-    } catch (proxyErr) {
-      console.error("Failed to fetch game data from both client and proxy:", proxyErr);
+    const wrapper = await response.json();
+    const json = JSON.parse(wrapper.contents);
+    const list = json.data?.list || json.data || json;
+    
+    if (Array.isArray(list) && list.length > 0) {
+      const latest = list[0];
+      const rawIssue = String(latest.issueNumber || latest.period || "0");
+      
+      // Calculate next 17-digit period
+      const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
+      currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
+      
+      const periodElem = document.getElementById('period');
+      if (periodElem) periodElem.innerText = currentPeriod;
+
+      updatePredictionUI(list);
+      renderHistory(list);
     }
-  }
-
-  if (Array.isArray(list) && list.length > 0) {
-    const latest = list[0];
-    const rawIssue = String(latest.issueNumber || latest.period || "0");
-    
-    // Safely parse 17-digit period string (e.g., 20260913100010553 -> 20260913100010554)
-    const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
-    currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
-    
-    const periodElem = document.getElementById('period');
-    if (periodElem) periodElem.innerText = currentPeriod;
-
-    updatePredictionUI(list);
-    renderHistory(list);
+  } catch (err) {
+    console.error("Veergame data fetch error:", err);
   }
 }
 
-// Anti-Crowd Prediction Strategy & Backup Numbers
+// Anti-Crowd Prediction Engine
 function updatePredictionUI(historyList) {
   if (!historyList || historyList.length < 3) return;
 
@@ -96,7 +86,6 @@ function updatePredictionUI(historyList) {
   let signal = "BIG";
   let confidenceScore = 88;
 
-  // Contrarian anti-crowd algorithm
   if (bigCount >= 4) {
     signal = "SMALL"; 
     confidenceScore = 93;
@@ -120,7 +109,7 @@ function updatePredictionUI(historyList) {
   if (backupElem) backupElem.innerText = backupNumbers.join(', ');
 }
 
-// History Table Renderer with Jackpot and Win/Loss evaluation
+// Render Results History Table
 function renderHistory(historyData) {
   const historyBody = document.getElementById('historyBody');
   if (!historyBody) return;
@@ -132,22 +121,18 @@ function renderHistory(historyData) {
     const num = parseInt(item.number || item.result || 0, 10);
     const actualResult = num >= 5 ? 'BIG' : 'SMALL';
     
-    // Evaluate historical accuracy relative to prediction strategy
     const predictedType = (num % 2 === 0) ? (num >= 5 ? 'BIG' : 'SMALL') : (num < 5 ? 'SMALL' : 'BIG');
     const backupNumbers = predictedType === 'BIG' ? [7, 8] : [1, 2];
 
     let statusText = "LOSS";
     let statusClass = "loss";
 
-    // 1. Jackpot Match
     if (backupNumbers.includes(num)) {
       statusText = "JACKPOT";
       statusClass = "win";
       jackpotsCount++;
       totalWins++;
-    } 
-    // 2. Standard Prediction Match
-    else if (predictedType === actualResult) {
+    } else if (predictedType === actualResult) {
       statusText = "WIN";
       statusClass = "win";
       totalWins++;
@@ -172,7 +157,7 @@ function renderHistory(historyData) {
   if (jackpotsElem) jackpotsElem.innerText = jackpotsCount;
 }
 
-// Synchronized 60-second Timer
+// 60-Second Sync Timer
 function startTimer() {
   setInterval(() => {
     const now = new Date();

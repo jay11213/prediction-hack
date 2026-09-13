@@ -1,5 +1,4 @@
 let currentPeriod = "";
-let selectedGameMode = "30s"; // Default mode ('30s' or '1m')
 
 document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("loginForm");
@@ -40,65 +39,34 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Fetch Game Data with target mode typeId
+// Fetch Live Data for Veer Games 1-Min
 async function fetchGameData() {
-  let list = [];
-  const typeId = selectedGameMode === "30s" ? 26 : 1; // 26 = 30s, 1 = 1M
-
   try {
-    const res = await fetch(`/api/game-data?typeId=${typeId}`);
-    const json = await res.json();
-    list = json.data?.list || json.data || json;
+    const response = await fetch('/api/game-data');
+    const json = await response.json();
+    
+    const list = json.data?.list || json.data || json;
+    
+    if (Array.isArray(list) && list.length > 0) {
+      const latest = list[0];
+      const rawIssue = String(latest.issueNumber || latest.period || "0");
+      
+      // Compute upcoming period for Veer Games 1-Minute
+      const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
+      currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
+      
+      const periodElem = document.getElementById('period');
+      if (periodElem) periodElem.innerText = currentPeriod;
+
+      updatePredictionUI(list);
+      renderHistory(list);
+    }
   } catch (err) {
-    console.warn("Server route failed, using time-synced engine...", err);
-  }
-
-  // Generate synchronized period & numbers if live API connection is throttled
-  if (!Array.isArray(list) || list.length === 0) {
-    list = generateSynchronizedData(selectedGameMode);
-  }
-
-  if (Array.isArray(list) && list.length > 0) {
-    const latest = list[0];
-    const rawIssue = String(latest.issueNumber || latest.period || "0");
-    
-    // Increment for upcoming period
-    const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
-    currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
-    
-    const periodElem = document.getElementById('period');
-    if (periodElem) periodElem.innerText = currentPeriod;
-
-    updatePredictionUI(list);
-    renderHistory(list);
+    console.error("Error fetching game data:", err);
   }
 }
 
-// Precision Synchronized Fallback Engine
-function generateSynchronizedData(mode) {
-  const now = new Date();
-  const dateStr = now.getFullYear().toString() +
-    String(now.getMonth() + 1).padStart(2, '0') +
-    String(now.getDate()).padStart(2, '0');
-  
-  const totalSecondsToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
-  
-  // Calculate exact sequence index based on time window
-  const index = mode === "30s" 
-    ? Math.floor(totalSecondsToday / 30) 
-    : Math.floor(totalSecondsToday / 60);
-
-  const startIssue = BigInt(`${dateStr}100010000`) + BigInt(index);
-
-  const mockList = [];
-  for (let i = 0; i < 10; i++) {
-    const issueNumber = (startIssue - BigInt(i)).toString();
-    const number = Math.floor(Math.random() * 10).toString();
-    mockList.push({ issueNumber, number });
-  }
-  return mockList;
-}
-
+// Prediction Logic
 function updatePredictionUI(historyList) {
   if (!historyList || historyList.length < 1) return;
 
@@ -131,6 +99,7 @@ function updatePredictionUI(historyList) {
   if (backupElem) backupElem.innerText = backupNumbers.join(', ');
 }
 
+// Render Results History Table
 function renderHistory(historyData) {
   const historyBody = document.getElementById('historyBody');
   if (!historyBody) return;
@@ -178,21 +147,19 @@ function renderHistory(historyData) {
   if (jackpotsElem) jackpotsElem.innerText = jackpotsCount;
 }
 
-// Universal Mode-Aware Timer Engine
+// 60-Second Loop Timer Engine
 function startTimer() {
   setInterval(() => {
     const now = new Date();
-    const cycle = selectedGameMode === "30s" ? 30 : 60;
-    const secondsLeft = cycle - (now.getSeconds() % cycle);
+    const secondsLeft = 60 - now.getSeconds();
     
     const timerElem = document.getElementById('countdown');
     if (timerElem) {
-      timerElem.innerText = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft}`;
+      timerElem.innerText = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft === 60 ? '00' : secondsLeft}`;
     }
 
-    if (secondsLeft === (cycle - 1)) {
+    if (secondsLeft === 59 || secondsLeft === 60) {
       fetchGameData();
     }
   }, 1000);
 }
-

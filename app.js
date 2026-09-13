@@ -1,5 +1,3 @@
-let timeLeft = 60; // Default WinGo 1-min countdown fallback
-
 async function fetchGameData() {
     try {
         const response = await fetch('/api/game-data');
@@ -8,14 +6,15 @@ async function fetchGameData() {
         const gameList = Array.isArray(json) ? json : (json.data || []);
         const predictions = json.predictions || [];
         const activePred = json.activePrediction;
+        const serverTimer = json.timer;
 
-        updateUI(gameList, predictions, activePred);
+        updateUI(gameList, predictions, activePred, serverTimer);
     } catch (err) {
         console.error("Failed to fetch game data:", err);
     }
 }
 
-function updateUI(gameList, predictions, activePred) {
+function updateUI(gameList, predictions, activePred, serverTimer) {
     if (gameList.length === 0) return;
 
     const latest = gameList[0];
@@ -25,10 +24,7 @@ function updateUI(gameList, predictions, activePred) {
     const periodEl = document.getElementById('current-period') || document.querySelector('.current-period');
     if (periodEl) {
         let targetPer = activePred ? activePred.targetPeriod : String(Number(period) + 1);
-        if (periodEl.textContent !== targetPer) {
-            periodEl.textContent = targetPer;
-            timeLeft = 60; // Reset timer when period shifts
-        }
+        periodEl.textContent = targetPer;
     }
 
     // 2. Update Model Signal
@@ -51,7 +47,15 @@ function updateUI(gameList, predictions, activePred) {
     const jackpotsEl = document.getElementById('jackpots-count') || document.querySelector('.jackpots-count');
     if (jackpotsEl) jackpotsEl.textContent = wins;
 
-    // 4. Update History Table (Latest 10)
+    // 4. Update Timer Display directly from Scraped Server Data
+    const timerEl = document.getElementById('timer');
+    if (timerEl && typeof serverTimer === 'number') {
+        let mins = String(Math.floor(serverTimer / 60)).padStart(2, '0');
+        let secs = String(serverTimer % 60).padStart(2, '0');
+        timerEl.textContent = `${mins}:${secs}`;
+    }
+
+    // 5. Update History Table (Latest 10)
     const tableBody = document.getElementById('history-table-body') || document.querySelector('tbody');
     if (tableBody) {
         tableBody.innerHTML = '';
@@ -69,18 +73,6 @@ function updateUI(gameList, predictions, activePred) {
     }
 }
 
-// Countdown timer ticker loop (runs every second)
-setInterval(() => {
-    timeLeft--;
-    if (timeLeft < 0) timeLeft = 59;
-    
-    const timerEl = document.getElementById('timer');
-    if (timerEl) {
-        let seconds = String(timeLeft % 60).padStart(2, '0');
-        timerEl.textContent = `00:${seconds}`;
-    }
-}, 1000);
-
-// Poll backend every 1.5 seconds to keep data synced
-setInterval(fetchGameData, 1500);
+// Poll backend every 1 second to keep timer and data perfectly synced with the website
+setInterval(fetchGameData, 1000);
 fetchGameData();

@@ -1,3 +1,5 @@
+let timeLeft = 60; // Default WinGo 1-min countdown fallback
+
 async function fetchGameData() {
     try {
         const response = await fetch('/api/game-data');
@@ -22,7 +24,11 @@ function updateUI(gameList, predictions, activePred) {
     // 1. Update Current Period Display
     const periodEl = document.getElementById('current-period') || document.querySelector('.current-period');
     if (periodEl) {
-        periodEl.textContent = activePred ? activePred.targetPeriod : String(Number(period) + 1);
+        let targetPer = activePred ? activePred.targetPeriod : String(Number(period) + 1);
+        if (periodEl.textContent !== targetPer) {
+            periodEl.textContent = targetPer;
+            timeLeft = 60; // Reset timer when period shifts
+        }
     }
 
     // 2. Update Model Signal
@@ -63,5 +69,18 @@ function updateUI(gameList, predictions, activePred) {
     }
 }
 
+// Countdown timer ticker loop (runs every second)
+setInterval(() => {
+    timeLeft--;
+    if (timeLeft < 0) timeLeft = 59;
+    
+    const timerEl = document.getElementById('timer');
+    if (timerEl) {
+        let seconds = String(timeLeft % 60).padStart(2, '0');
+        timerEl.textContent = `00:${seconds}`;
+    }
+}, 1000);
+
+// Poll backend every 1.5 seconds to keep data synced
 setInterval(fetchGameData, 1500);
 fetchGameData();

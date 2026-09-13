@@ -1,28 +1,31 @@
 const express = require('express');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
-app.use(express.json());
 
 let latestLiveStore = [];
 let predictionLog = []; 
 let currentActivePrediction = null; 
+let liveTimer = 60; // Synced live timer from website
 
-// Receiver endpoint for real-time live data
+// Receiver endpoint for game history data
 app.post('/api/inject-data', (req, res) => {
-  const data = req.body?.data?.list || req.body?.data || req.body?.list || [];
+  const payload = req.body;
+  const data = Array.isArray(payload) ? payload : (payload?.data?.list || payload?.data || payload?.list || []);
+
   if (Array.isArray(data) && data.length > 0) {
     let latestItem = data[0]; 
-    
-    let latestPeriod = String(latestItem.issueNumber || latestItem.period || latestItem.gameNo || "");
-    let latestNum = parseInt(latestItem.number ?? latestItem.price ?? latestItem.winningNumber ?? 0);
+    let latestPeriod = String(latestItem.issueNumber || latestItem.period || latestItem.gameNo || latestItem.stage || "");
+    let latestNum = parseInt(latestItem.number ?? latestItem.price ?? latestItem.winningNumber ?? latestItem.sum ?? 0);
     
     let actualOutcome = latestNum >= 5 ? "Big" : "Small";
 
-    // 1. AUDIT: Grade the previous locked prediction honestly
     if (currentActivePrediction && currentActivePrediction.targetPeriod === latestPeriod) {
       let isWin = (currentActivePrediction.predictedChoice === actualOutcome);
       let auditRecord = {
@@ -33,37 +36,47 @@ app.post('/api/inject-data', (req, res) => {
         status: isWin ? "WIN" : "LOSS"
       };
       
-      predictionLog.unshift(auditRecord);
-      if (predictionLog.length > 50) predictionLog.pop(); 
-      console.log(`[AUDIT] Period ${latestPeriod} | Pred: ${auditRecord.predicted} | Actual: ${auditRecord.actual} (${latestNum}) -> ${auditRecord.status}`);
+      if (!predictionLog.some(p => p.period === latestPeriod)) {
+        predictionLog.unshift(auditRecord);
+        if (predictionLog.length > 50) predictionLog.pop(); 
+      }
       
       currentActivePrediction = null;
     }
 
-    // 2. PREDICT: Lock in next prediction safely
-    let nextPeriod = String(Number(latestPeriod) + 1);
-    let nextChoice = (latestNum % 2 === 0) ? "Small" : "Big"; 
-
-    currentActivePrediction = {
-      targetPeriod: nextPeriod,
-      predictedChoice: nextChoice
-    };
-
-    console.log(`[LOCKED PREDICTION] For Period ${nextPeriod} -> Bet on: ${nextChoice}`);
+    if (latestPeriod) {
+      let nextPeriod = String(Number(latestPeriod) + 1);
+      if (!currentActivePrediction || currentActivePrediction.targetPeriod !== nextPeriod) {
+        let nextChoice = (latestNum % 2 === 0) ? "Small" : "Big"; 
+        currentActivePrediction = {
+          targetPeriod: nextPeriod,
+          predictedChoice: nextChoice
+        };
+      }
+    }
 
     latestLiveStore = data;
-    return res.json({ status: "success" });
+    return res.json({ status: "success", count: data.length });
   }
-  return res.status(400).json({ status: "error" });
+  return res.status(400).json({ status: "error", message: "No valid array found" });
 });
 
-// Endpoint serving game data AND prediction logs to frontend UI
+// Receiver endpoint for live website timer
+app.post('/api/inject-timer', (req, res) => {
+  if (req.body && typeof req.body.timer === 'number') {
+    liveTimer = req.body.timer;
+  }
+  return res.json({ status: "success" });
+});
+
+// Endpoint serving game data, history logs, and exact live timer to frontend
 app.get('/api/game-data', (req, res) => {
   return res.json({
     code: 0,
     data: latestLiveStore,
     predictions: predictionLog,
-    activePrediction: currentActivePrediction
+    activePrediction: currentActivePrediction,
+    timer: liveTimer
   });
 });
 

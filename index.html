@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Neon Signal Lab</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <section id="loginView" class="view">
+      <div class="brand-mark">NSL</div>
+      <h1>Neon Signal Lab</h1>
+      <p class="muted">Private prediction analytics workspace</p>
+      <form id="loginForm" class="panel login-panel">
+        <label>User ID<input id="userId" autocomplete="username" required /></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" required /></label>
+        <button class="primary" type="submit">Enter workspace</button>
+        <p id="loginError" class="error"></p>
+        <p class="hint">Demo access: <b>demo_user</b> / <b>demo_pass</b></p>
+      </form>
+    </section>
+
+    <section id="dashboardView" class="view hidden">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">PRIVATE ANALYTICS</div>
+          <h1>Neon Signal Lab</h1>
+        </div>
+        <button id="logoutBtn" class="icon-button" title="Log out">↗</button>
+      </header>
+
+      <div class="demo-banner">DEMO MODE · Mock values only · Not real predictions</div>
+
+      <div class="mode-row">
+        <button class="mode active">Royal</button>
+        <button class="mode">Crimson</button>
+        <button class="mode">Ocean</button>
+        <button class="mode">Emerald</button>
+      </div>
+
+      <section class="stats-grid">
+        <div class="panel stat"><strong id="winRate">0%</strong><span>WIN RATE</span></div>
+        <div class="panel stat"><strong id="jackpots">0</strong><span>JACKPOTS</span></div>
+        <div class="panel stat"><strong id="total">0</strong><span>TOTAL</span></div>
+      </section>
+
+      <section class="panel period-panel">
+        <div><span class="eyebrow">CURRENT PERIOD</span><strong id="period">—</strong></div>
+        <div class="timer" id="countdown">00:00</div>
+      </section>
+
+      <section class="prediction-card">
+        <div class="eyebrow">MODEL SIGNAL</div>
+        <div id="predictionType" class="prediction-type">—</div>
+        <div class="numbers" id="numbers"></div>
+        <div class="confidence"><span>MODEL CONFIDENCE</span><strong id="confidence">—%</strong></div>
+        <div class="confirmation">✦ <span id="confirmation">Pattern + contrarian demo signal</span> ✦</div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading"><h2>Result history</h2><span class="muted">Latest 20</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Period</th><th>Result</th><th>Prediction</th><th>Status</th></tr></thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

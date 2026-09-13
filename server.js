@@ -1,20 +1,26 @@
 const express = require('express');
 const path = require('path');
-const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// Native CORS headers (prevents missing module crashes)
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
 
 let latestLiveStore = [];
 let predictionLog = []; 
 let currentActivePrediction = null; 
-let liveTimer = 60; // Synced live timer from website
+let liveTimer = 60;
 
-// Receiver endpoint for game history data
 app.post('/api/inject-data', (req, res) => {
   const payload = req.body;
   const data = Array.isArray(payload) ? payload : (payload?.data?.list || payload?.data || payload?.list || []);
@@ -45,9 +51,10 @@ app.post('/api/inject-data', (req, res) => {
     }
 
     if (latestPeriod) {
+      let latestNumClean = isNaN(latestNum) ? 0 : latestNum;
       let nextPeriod = String(Number(latestPeriod) + 1);
       if (!currentActivePrediction || currentActivePrediction.targetPeriod !== nextPeriod) {
-        let nextChoice = (latestNum % 2 === 0) ? "Small" : "Big"; 
+        let nextChoice = (latestNumClean % 2 === 0) ? "Small" : "Big"; 
         currentActivePrediction = {
           targetPeriod: nextPeriod,
           predictedChoice: nextChoice
@@ -61,7 +68,6 @@ app.post('/api/inject-data', (req, res) => {
   return res.status(400).json({ status: "error", message: "No valid array found" });
 });
 
-// Receiver endpoint for live website timer
 app.post('/api/inject-timer', (req, res) => {
   if (req.body && typeof req.body.timer === 'number') {
     liveTimer = req.body.timer;
@@ -69,7 +75,6 @@ app.post('/api/inject-timer', (req, res) => {
   return res.json({ status: "success" });
 });
 
-// Endpoint serving game data, history logs, and exact live timer to frontend
 app.get('/api/game-data', (req, res) => {
   return res.json({
     code: 0,

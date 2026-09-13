@@ -39,57 +39,77 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Direct Browser Fetch to Veer Games via CORS Bridge
+// Multi-Proxy Live Data Fetcher
 async function fetchGameData() {
   let list = [];
+  const targetApi = 'https://www.veergame38.com/api/webapi/GetNoHeaderList';
+  const payload = { typeId: 1, pageSize: 10, pageNo: 1 };
 
+  // Layer 1: Try direct backend proxy endpoint first
   try {
-    const targetUrl = encodeURIComponent('https://www.veergame38.com/api/webapi/GetNoHeaderList');
-    // Using CORS bridge to fetch live database results straight from browser
-    const res = await fetch(`https://api.allorigins.win/post?url=${targetUrl}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ typeId: 1, pageSize: 10, pageNo: 1 })
-    });
-
-    const wrapper = await res.json();
-    if (wrapper && wrapper.contents) {
-      const parsed = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
-      list = parsed.data?.list || parsed.data || [];
+    const res = await fetch('/api/game-data');
+    const json = await res.json();
+    if (json && json.data && Array.isArray(json.data.list)) {
+      list = json.data.list;
+    } else if (Array.isArray(json.data)) {
+      list = json.data;
     }
   } catch (err) {
-    console.error("Browser-side proxy fetch error:", err);
+    console.warn("Backend proxy bypassed, attempting public CORS bridges...");
   }
 
-  // Backup fetch to backend proxy if CORS bridge fails
-  if (!Array.isArray(list) || list.length === 0) {
+  // Layer 2: Primary Browser CORS Proxy (CorsProxy.io)
+  if (!list || list.length === 0) {
     try {
-      const res = await fetch('/api/game-data');
+      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetApi)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
       const json = await res.json();
       list = json.data?.list || json.data || [];
     } catch (e) {
-      console.error("Backend fetch error:", e);
+      console.warn("Primary CORS bridge failed, trying secondary bridge...");
     }
   }
 
-  // UI Renderer with Live Data
+  // Layer 3: Secondary Browser CORS Proxy (AllOrigins Cache-Bust)
+  if (!list || list.length === 0) {
+    try {
+      const cacheBustUrl = encodeURIComponent(`${targetApi}?t=${Date.now()}`);
+      const res = await fetch(`https://api.allorigins.win/get?url=${cacheBustUrl}`);
+      const wrapper = await res.json();
+      if (wrapper && wrapper.contents) {
+        const parsed = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
+        list = parsed.data?.list || parsed.data || [];
+      }
+    } catch (e) {
+      console.error("All proxy bridges exhausted:", e);
+    }
+  }
+
+  // Render UI with fetched live data
   if (Array.isArray(list) && list.length > 0) {
     const latest = list[0];
     const rawIssue = String(latest.issueNumber || latest.period || "0");
     
-    // Calculate upcoming 1-minute period
-    const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
-    currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
+    if (rawIssue !== "0") {
+      const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
+      currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
+    }
     
     const periodElem = document.getElementById('period');
-    if (periodElem) periodElem.innerText = currentPeriod;
+    if (periodElem) periodElem.innerText = currentPeriod || rawIssue;
 
     updatePredictionUI(list);
     renderHistory(list);
   }
 }
 
-// Prediction Signal Logic
+// Prediction Logic
 function updatePredictionUI(historyList) {
   if (!historyList || historyList.length < 1) return;
 
@@ -122,7 +142,7 @@ function updatePredictionUI(historyList) {
   if (backupElem) backupElem.innerText = backupNumbers.join(', ');
 }
 
-// History Renderer
+// History Table Renderer
 function renderHistory(historyData) {
   const historyBody = document.getElementById('historyBody');
   if (!historyBody) return;
@@ -185,5 +205,5 @@ function startTimer() {
       fetchGameData();
     }
   }, 1000);
-}
+  }
   

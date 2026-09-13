@@ -40,18 +40,33 @@ document.addEventListener("DOMContentLoaded", () => {
 async function fetchGameData() {
   try {
     const response = await fetch('/api/game-data');
-    const result = await response.json();
-    
-    if (result && result.data && result.data.length > 0) {
-      const latest = result.data[0];
-      const latestIssue = BigInt(latest.issueNumber);
-      currentPeriod = (latestIssue + 1n).toString();
+    const resData = await response.json();
+
+    // Flexible extraction to catch data across various WinGo API formats
+    let list = [];
+    if (Array.isArray(resData)) {
+      list = resData;
+    } else if (resData && Array.isArray(resData.data)) {
+      list = resData.data;
+    } else if (resData && resData.data && Array.isArray(resData.data.list)) {
+      list = resData.data.list;
+    } else if (resData && Array.isArray(resData.list)) {
+      list = resData.list;
+    }
+
+    if (list.length > 0) {
+      const latest = list[0];
+      const issueStr = latest.issueNumber || latest.period || latest.issue;
       
-      const periodElem = document.getElementById('period');
-      if (periodElem) periodElem.innerText = currentPeriod;
+      if (issueStr) {
+        const latestIssue = BigInt(issueStr);
+        currentPeriod = (latestIssue + 1n).toString();
+        const periodElem = document.getElementById('period');
+        if (periodElem) periodElem.innerText = currentPeriod;
+      }
 
       updatePredictionSignal(latest);
-      renderHistory(result.data);
+      renderHistory(list);
     }
   } catch (err) {
     console.error("Error fetching game data:", err);
@@ -59,7 +74,11 @@ async function fetchGameData() {
 }
 
 function updatePredictionSignal(latestItem) {
-  const num = parseInt(latestItem.number, 10);
+  const rawNum = latestItem.number !== undefined ? latestItem.number : latestItem.result;
+  const num = parseInt(rawNum, 10);
+  
+  if (isNaN(num)) return;
+
   const predType = num >= 5 ? "BIG" : "SMALL";
   
   const predElem = document.getElementById('predictionType');
@@ -74,14 +93,16 @@ function renderHistory(historyData) {
   if (!historyBody) return;
 
   historyBody.innerHTML = historyData.slice(0, 10).map(item => {
-    const num = parseInt(item.number, 10);
-    const resultType = num >= 5 ? 'BIG' : 'SMALL';
-    const statusClass = num >= 5 ? 'win' : 'loss';
+    const issue = item.issueNumber || item.period || item.issue || "—";
+    const rawNum = item.number !== undefined ? item.number : item.result;
+    const num = parseInt(rawNum, 10);
+    const resultType = isNaN(num) ? "—" : (num >= 5 ? 'BIG' : 'SMALL');
+    const statusClass = resultType === 'BIG' ? 'win' : 'loss';
 
     return `
       <tr>
-        <td>${item.issueNumber}</td>
-        <td>${item.number} (${resultType})</td>
+        <td>${issue}</td>
+        <td>${rawNum !== undefined ? rawNum : '—'} (${resultType})</td>
         <td>${resultType}</td>
         <td><span class="status ${statusClass}">${resultType === 'BIG' ? 'WIN' : 'LOSS'}</span></td>
       </tr>

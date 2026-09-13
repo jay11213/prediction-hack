@@ -1,5 +1,30 @@
 let currentPeriod = "";
 
+// Login function
+document.addEventListener("DOMContentLoaded", () => {
+  const loginBtn = document.querySelector("button") || document.querySelector(".btn") || document.getElementById("loginBtn");
+  
+  if (loginBtn) {
+    loginBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const inputs = document.querySelectorAll("input");
+      const userId = inputs[0] ? inputs[0].value.trim() : "";
+      const password = inputs[1] ? inputs[1].value.trim() : "";
+
+      if ((userId === "demo_user" || userId === "demo") && (password === "demo_pass" || password === "demo")) {
+        const loginContainer = document.querySelector(".card") || document.querySelector("form") || document.querySelector(".login-container");
+        if (loginContainer) loginContainer.style.display = "none";
+        
+        const dashboard = document.getElementById("dashboard") || document.querySelector(".dashboard");
+        if (dashboard) dashboard.style.display = "block";
+      } else {
+        alert("Invalid User ID or Password. Use demo_user and demo_pass");
+      }
+    });
+  }
+});
+
+// Fetch game data from server
 async function fetchGameData() {
   try {
     const response = await fetch('/api/game-data');
@@ -7,15 +32,12 @@ async function fetchGameData() {
     
     if (result && result.data && result.data.length > 0) {
       const latest = result.data[0];
-      
-      // Update real period number (incrementing by 1 for current active round)
       const latestIssue = BigInt(latest.issueNumber);
       currentPeriod = (latestIssue + 1n).toString();
       
       const periodElem = document.getElementById('period') || document.getElementById('current-period');
       if (periodElem) periodElem.innerText = currentPeriod;
 
-      // Render history table
       renderHistory(result.data);
     }
   } catch (err) {
@@ -42,7 +64,7 @@ function renderHistory(historyData) {
   }).join('');
 }
 
-// 60-second timer countdown sync for WinGo 1 Min
+// Timer countdown
 function startTimer() {
   setInterval(() => {
     const now = new Date();
@@ -53,13 +75,11 @@ function startTimer() {
       timerElem.innerText = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft}`;
     }
 
-    // Refresh game data at the start of each new minute
     if (secondsLeft === 59) {
       fetchGameData();
     }
   }, 1000);
 }
 
-// Initial fetch and start timer
 fetchGameData();
 startTimer();

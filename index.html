@@ -1,43 +1,145 @@
-async function fetchGameData() {
-    try {
-        let response = await fetch('/api/game-data');
-        let json = await response.json();
-        
-        if (json.code === 0) {
-            updateUI(json.data, json.predictions, json.activePrediction);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WinGo Prediction Dashboard</title>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
         }
-    } catch (e) {
-        console.error("Error fetching game data:", e);
-    }
-}
 
-function updateUI(historyList, predictions, activePred) {
-    // 1. Update Active Prediction Signal
-    let signalEl = document.querySelector('.model-signal'); // Adjust selector to match your HTML
-    let periodEl = document.querySelector('.current-period'); // Adjust selector to match your HTML
-    
-    if (activePred) {
-        if (signalEl) signalEl.innerText = activePred.predictedChoice;
-        if (periodEl) periodEl.innerText = activePred.targetPeriod;
-    }
+        .dashboard-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
 
-    // 2. Update Result History Table
-    let tableBody = document.querySelector('tbody'); // Adjust selector to match your table
-    if (tableBody && predictions) {
-        tableBody.innerHTML = '';
-        predictions.forEach(item => {
-            let row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${item.period}</td>
-                <td>${item.actual} (${item.number})</td>
-                <td>${item.predicted}</td>
-                <td style="color: ${item.status === 'WIN' ? '#22c55e' : '#ef4444'}; font-weight: bold;">${item.status}</td>
-            `;
-            tableBody.appendChild(row);
-        });
-    }
-}
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
 
-// Poll every 1 second for real-time updates
-setInterval(fetchGameData, 1000);
-fetchGameData();
+        .stat-card {
+            background: #334155;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .stat-card .value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .signal-box {
+            background: #0ea5e9;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .signal-box h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+
+        th {
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .status-badge.win {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+
+        .status-badge.loss {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>WIN RATE</h3>
+                <div id="win-rate" class="value">0%</div>
+            </div>
+            <div class="stat-card">
+                <h3>JACKPOTS</h3>
+                <div id="jackpots-count" class="value">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>TOTAL</h3>
+                <div id="total-count" class="value">0</div>
+            </div>
+        </div>
+
+        <div class="stat-card" style="margin-bottom: 15px;">
+            <h3>CURRENT PERIOD</h3>
+            <div id="current-period" class="value">—</div>
+        </div>
+
+        <div class="signal-box">
+            <h3>MODEL SIGNAL</h3>
+            <h2 id="model-signal">—</h2>
+        </div>
+
+        <h2>Result history</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Period</th>
+                    <th>Actual</th>
+                    <th>Prediction</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="history-table-body">
+                <!-- Dynamic rows populated by app.js -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

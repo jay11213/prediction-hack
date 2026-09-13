@@ -8,36 +8,43 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 
+// Updated Target configuration for shreewin2.com
+const TARGET_API_URL = 'https://www.shreewin2.com/api/webapi/GetNoHeaderList';
+const TARGET_ORIGIN = 'https://www.shreewin2.com';
+
 app.get('/api/game-data', async (req, res) => {
   try {
-    // Attempt fetch directly matching modern WinGo/VeerGame structure
     const response = await axios.post(
-      'https://veergame38.com/api/webapi/GetNoHeaderList',
-      { typeId: 1, pageSize: 10, pageNo: 1 },
+      TARGET_API_URL,
+      { 
+        typeId: 26,     // Set to 26 for WinGo 30S (use 1 for WinGo 1M)
+        pageSize: 10,  
+        pageNo: 1 
+      },
       {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
           'Accept': 'application/json, text/plain, */*',
           'Content-Type': 'application/json;datatype=json',
-          'Origin': 'https://veergame38.com',
-          'Referer': 'https://veergame38.com/'
+          'Origin': TARGET_ORIGIN,
+          'Referer': `${TARGET_ORIGIN}/`
         },
         timeout: 4000
       }
     );
     return res.json(response.data);
   } catch (error) {
-    console.log('Target API blocked or unreachable. Utilizing synchronized period fallback.');
+    console.log('ShreeWin2 API fallback triggered.');
 
-    // Fallback matching exact 17-digit period format: YYYYMMDD1000XXXXX
+    // 17-digit period generator fallback
     const now = new Date();
     const dateStr = now.getFullYear().toString() +
       String(now.getMonth() + 1).padStart(2, '0') +
       String(now.getDate()).padStart(2, '0');
     
-    // Calculate total 1-minute blocks elapsed today
-    const currentMinuteIndex = now.getHours() * 60 + now.getMinutes();
-    const startIssue = BigInt(`${dateStr}100010000`) + BigInt(currentMinuteIndex);
+    const totalSecondsToday = (now.getHours() * 3600) + (now.getMinutes() * 60) + now.getSeconds();
+    const current30sIndex = Math.floor(totalSecondsToday / 30);
+    const startIssue = BigInt(`${dateStr}100010000`) + BigInt(current30sIndex);
 
     const mockList = [];
     for (let i = 0; i < 10; i++) {

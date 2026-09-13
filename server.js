@@ -8,8 +8,8 @@ app.use(express.static(path.join(__dirname)));
 app.use(express.json());
 
 let latestLiveStore = [];
-let predictionLog = []; // Stores past predictions and their audit results
-let currentActivePrediction = null; // Locked prediction for the active/upcoming period
+let predictionLog = []; 
+let currentActivePrediction = null; 
 
 // Receiver endpoint for real-time live data
 app.post('/api/inject-data', (req, res) => {
@@ -20,7 +20,7 @@ app.post('/api/inject-data', (req, res) => {
     let latestNum = parseInt(latestItem.number || latestItem.price);
     let actualOutcome = latestNum >= 5 ? "Big" : "Small";
 
-    // 1. AUDIT: If we have a locked prediction for this newly finished period, grade it honestly now
+    // 1. AUDIT: Grade the previous locked prediction honestly
     if (currentActivePrediction && currentActivePrediction.targetPeriod === latestPeriod) {
       let isWin = (currentActivePrediction.predictedChoice === actualOutcome);
       let auditRecord = {
@@ -28,20 +28,18 @@ app.post('/api/inject-data', (req, res) => {
         predicted: currentActivePrediction.predictedChoice,
         actual: actualOutcome,
         number: latestNum,
-        result: isWin ? "WIN" : "LOSS"
+        status: isWin ? "WIN" : "LOSS"
       };
       
-      predictionLog.unshift(auditRecord); // Add to the top of our log
-      console.log(`[AUDIT] Period ${latestPeriod} | Pred: ${auditRecord.predicted} | Actual: ${auditRecord.actual} (${latestNum}) -> ${auditRecord.result}`);
+      predictionLog.unshift(auditRecord);
+      if (predictionLog.length > 50) predictionLog.pop(); // Keep last 50
+      console.log(`[AUDIT] Period ${latestPeriod} | Pred: ${auditRecord.predicted} | Actual: ${auditRecord.actual} (${latestNum}) -> ${auditRecord.status}`);
       
-      // Clear current active prediction once audited
       currentActivePrediction = null;
     }
 
-    // 2. PREDICT: Lock in a prediction for the *next* upcoming period based on history trends
+    // 2. PREDICT: Lock in next prediction
     let nextPeriod = String(Number(latestPeriod) + 1);
-    
-    // Simple analytical rule (e.g., alternating or trend-based) instead of retroactive matching
     let nextChoice = latestNum % 2 === 0 ? "Small" : "Big"; 
 
     currentActivePrediction = {
@@ -57,16 +55,18 @@ app.post('/api/inject-data', (req, res) => {
   return res.status(400).json({ status: "error" });
 });
 
-// Endpoint serving data and prediction audit logs to frontend
+// Endpoint serving game data AND prediction logs to frontend UI
 app.get('/api/game-data', (req, res) => {
-  if (latestLiveStore.length > 0) {
-    return res.json(latestLiveStore);
-  }
-  return res.json([]);
+  return res.json({
+    code: 0,
+    data: latestLiveStore,
+    predictions: predictionLog,
+    activePrediction: currentActivePrediction
+  });
 });
 
 app.get('*', (req, res) => {
-  sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

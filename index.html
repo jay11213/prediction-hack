@@ -1,75 +1,136 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Neon Signal Lab</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neon Signal Lab - WinGo Analytics</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #0b0f19; color: #fff; padding: 15px; }
+    .hidden { display: none !important; }
+    
+    /* Login Styles */
+    .login-card { max-width: 400px; margin: 50px auto; background: #151c2e; padding: 25px; border-radius: 12px; border: 1px solid #232f48; }
+    .login-card h2 { margin-bottom: 20px; text-align: center; color: #ffb703; }
+    .input-group { margin-bottom: 15px; }
+    .input-group label { display: block; margin-bottom: 5px; font-size: 14px; color: #8a99ad; }
+    .input-group input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #232f48; background: #0b0f19; color: #fff; }
+    .btn { width: 100%; padding: 12px; background: #ffb703; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; color: #000; }
+    .error { color: #ff4d4d; font-size: 13px; margin-top: 10px; text-align: center; }
+
+    /* Dashboard Styles */
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .title { font-size: 18px; font-weight: bold; }
+    .subtitle { font-size: 11px; color: #ffb703; text-transform: uppercase; letter-spacing: 1px; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+    .stat-card { background: #151c2e; padding: 12px; border-radius: 10px; text-align: center; border: 1px solid #232f48; }
+    .stat-value { font-size: 20px; font-weight: bold; color: #ffb703; }
+    .stat-label { font-size: 10px; color: #8a99ad; margin-top: 4px; }
+
+    .period-card { background: #151c2e; padding: 15px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #232f48; margin-bottom: 15px; }
+    .timer { font-size: 22px; font-weight: bold; color: #00f5d4; }
+
+    .signal-card { background: #151c2e; padding: 20px; border-radius: 12px; border: 1px solid #ffb703; text-align: center; margin-bottom: 20px; }
+    .signal-title { font-size: 11px; letter-spacing: 1.5px; color: #ffb703; margin-bottom: 10px; }
+    .signal-value { font-size: 32px; font-weight: bold; color: #ffb703; margin: 10px 0; }
+    .backup-text { font-size: 13px; color: #00f5d4; margin-top: 5px; font-weight: 600; }
+    .confidence { font-size: 13px; color: #8a99ad; margin-top: 8px; }
+
+    /* History Table */
+    .history-card { background: #151c2e; padding: 15px; border-radius: 10px; border: 1px solid #232f48; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th, td { padding: 8px; text-align: center; border-bottom: 1px solid #232f48; }
+    th { color: #8a99ad; font-weight: normal; }
+    .status { padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; }
+    .status.win { background: rgba(0, 245, 212, 0.15); color: #00f5d4; }
+    .status.loss { background: rgba(255, 77, 77, 0.15); color: #ff4d4d; }
+  </style>
 </head>
 <body>
-  <main class="app-shell">
-    <section id="loginView" class="view">
-      <div class="brand-mark">NSL</div>
-      <h1>Neon Signal Lab</h1>
-      <p class="muted">Private prediction analytics workspace</p>
-      <form id="loginForm" class="panel login-panel">
-        <label>User ID<input id="userId" autocomplete="username" required /></label>
-        <label>Password<input id="password" type="password" autocomplete="current-password" required /></label>
-        <button class="primary" type="submit">Enter workspace</button>
-        <p id="loginError" class="error"></p>
-        <p class="hint">Demo access: <b>demo_user</b> / <b>demo_pass</b></p>
-      </form>
-    </section>
 
-    <section id="dashboardView" class="view hidden">
-      <header class="topbar">
-        <div>
-          <div class="eyebrow">PRIVATE ANALYTICS</div>
-          <h1>Neon Signal Lab</h1>
-        </div>
-        <button id="logoutBtn" class="icon-button" title="Log out">↗</button>
-      </header>
-
-      <div class="demo-banner">DEMO MODE · Mock values only · Not real predictions</div>
-
-      <div class="mode-row">
-        <button class="mode active">Royal</button>
-        <button class="mode">Crimson</button>
-        <button class="mode">Ocean</button>
-        <button class="mode">Emerald</button>
+  <!-- LOGIN VIEW -->
+  <div id="loginView" class="login-card">
+    <h2>Neon Signal Lab</h2>
+    <form id="loginForm">
+      <div class="input-group">
+        <label for="userId">User ID</label>
+        <input type="text" id="userId" placeholder="Enter User ID" required />
       </div>
+      <div class="input-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter Password" required />
+      </div>
+      <button type="submit" class="btn">Login</button>
+      <div id="loginError" class="error"></div>
+    </form>
+  </div>
 
-      <section class="stats-grid">
-        <div class="panel stat"><strong id="winRate">0%</strong><span>WIN RATE</span></div>
-        <div class="panel stat"><strong id="jackpots">0</strong><span>JACKPOTS</span></div>
-        <div class="panel stat"><strong id="total">0</strong><span>TOTAL</span></div>
-      </section>
+  <!-- DASHBOARD VIEW -->
+  <div id="dashboardView" class="hidden">
+    <div class="header">
+      <div>
+        <div class="subtitle">Private Analytics</div>
+        <div class="title">Neon Signal Lab</div>
+      </div>
+      <button id="logoutBtn" style="background:none; border:none; color:#ff4d4d; font-size:12px; cursor:pointer;">Logout</button>
+    </div>
 
-      <section class="panel period-panel">
-        <div><span class="eyebrow">CURRENT PERIOD</span><strong id="period">—</strong></div>
-        <div class="timer" id="countdown">00:00</div>
-      </section>
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="winRate">0%</div>
+        <div class="stat-label">WIN RATE</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="jackpots">0</div>
+        <div class="stat-label">JACKPOTS</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">10</div>
+        <div class="stat-label">TOTAL</div>
+      </div>
+    </div>
 
-      <section class="prediction-card">
-        <div class="eyebrow">MODEL SIGNAL</div>
-        <div id="predictionType" class="prediction-type">—</div>
-        <div class="numbers" id="numbers"></div>
-        <div class="confidence"><span>MODEL CONFIDENCE</span><strong id="confidence">—%</strong></div>
-        <div class="confirmation">✦ <span id="confirmation">Pattern + contrarian demo signal</span> ✦</div>
-      </section>
+    <!-- Current Period & Timer -->
+    <div class="period-card">
+      <div>
+        <div style="font-size: 10px; color: #ffb703; letter-spacing: 1px;">CURRENT PERIOD</div>
+        <div id="period" style="font-size: 16px; font-weight: bold; margin-top: 4px;">—</div>
+      </div>
+      <div class="timer" id="countdown">00:60</div>
+    </div>
 
-      <section class="panel">
-        <div class="section-heading"><h2>Result history</h2><span class="muted">Latest 20</span></div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Period</th><th>Result</th><th>Prediction</th><th>Status</th></tr></thead>
-            <tbody id="historyBody"></tbody>
-          </table>
-        </div>
-      </section>
-    </section>
-  </main>
-  <script src="/app.js"></script>
+    <!-- Model Signal Card -->
+    <div class="signal-card">
+      <div class="signal-title">MODEL SIGNAL</div>
+      <div class="signal-value" id="predictionType">—</div>
+      <div class="backup-text">Backup Numbers: <span id="backupNumbers">—</span></div>
+      <div class="confidence">MODEL CONFIDENCE: <span id="confidence">—%</span></div>
+    </div>
+
+    <!-- History -->
+    <div class="history-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:bold; font-size:14px;">Result history</span>
+        <span style="font-size:11px; color:#8a99ad;">Latest 10</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Result</th>
+            <th>Prediction</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <!-- Rows render dynamically via app.js -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
 </body>
 </html>

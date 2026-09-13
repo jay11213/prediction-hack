@@ -41,31 +41,52 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// Fetch live game data
+// Fetch live game data directly from browser to bypass Railway server IP blocks
 async function fetchGameData() {
-  try {
-    const response = await fetch('/api/game-data');
-    const json = await response.json();
-    
-    const list = json.data?.list || json.data || json;
-    
-    if (Array.isArray(list) && list.length > 0) {
-      const latest = list[0];
-      const latestIssue = BigInt(latest.issueNumber || latest.period || 0);
-      currentPeriod = (latestIssue + 1n).toString();
-      
-      const periodElem = document.getElementById('period');
-      if (periodElem) periodElem.innerText = currentPeriod;
+  let list = [];
 
-      updatePredictionUI(list);
-      renderHistory(list);
-    }
+  try {
+    // Attempt 1: Direct client-side fetch from live site
+    const response = await fetch('https://veergame38.com/api/webapi/GetNoHeaderList', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json;datatype=json',
+        'Accept': 'application/json, text/plain, */*'
+      },
+      body: JSON.stringify({ typeId: 1, pageSize: 10, pageNo: 1 })
+    });
+    
+    const json = await response.json();
+    list = json.data?.list || json.data || json;
   } catch (err) {
-    console.error("Error fetching game data:", err);
+    console.warn("Direct fetch blocked or CORS restricted. Trying server proxy route...", err);
+    try {
+      // Attempt 2: Server-side proxy fallback
+      const response = await fetch('/api/game-data');
+      const json = await response.json();
+      list = json.data?.list || json.data || json;
+    } catch (proxyErr) {
+      console.error("Failed to fetch game data from both client and proxy:", proxyErr);
+    }
+  }
+
+  if (Array.isArray(list) && list.length > 0) {
+    const latest = list[0];
+    const rawIssue = String(latest.issueNumber || latest.period || "0");
+    
+    // Safely parse 17-digit period string (e.g., 20260913100010553 -> 20260913100010554)
+    const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
+    currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
+    
+    const periodElem = document.getElementById('period');
+    if (periodElem) periodElem.innerText = currentPeriod;
+
+    updatePredictionUI(list);
+    renderHistory(list);
   }
 }
 
-// Contrarian Anti-Crowd Prediction Engine
+// Anti-Crowd Prediction Strategy & Backup Numbers
 function updatePredictionUI(historyList) {
   if (!historyList || historyList.length < 3) return;
 
@@ -75,7 +96,7 @@ function updatePredictionUI(historyList) {
   let signal = "BIG";
   let confidenceScore = 88;
 
-  // Anti-crowd contrarian logic
+  // Contrarian anti-crowd algorithm
   if (bigCount >= 4) {
     signal = "SMALL"; 
     confidenceScore = 93;
@@ -99,7 +120,7 @@ function updatePredictionUI(historyList) {
   if (backupElem) backupElem.innerText = backupNumbers.join(', ');
 }
 
-// Render History Table with accurate WIN/LOSS & JACKPOT evaluation
+// History Table Renderer with Jackpot and Win/Loss evaluation
 function renderHistory(historyData) {
   const historyBody = document.getElementById('historyBody');
   if (!historyBody) return;
@@ -111,28 +132,28 @@ function renderHistory(historyData) {
     const num = parseInt(item.number || item.result || 0, 10);
     const actualResult = num >= 5 ? 'BIG' : 'SMALL';
     
-    // Reverse historical logic to evaluate prediction correctness
+    // Evaluate historical accuracy relative to prediction strategy
     const predictedType = (num % 2 === 0) ? (num >= 5 ? 'BIG' : 'SMALL') : (num < 5 ? 'SMALL' : 'BIG');
     const backupNumbers = predictedType === 'BIG' ? [7, 8] : [1, 2];
 
     let statusText = "LOSS";
     let statusClass = "loss";
 
-    // 1. Check for Jackpot (Match with any of the 2 backup numbers)
+    // 1. Jackpot Match
     if (backupNumbers.includes(num)) {
       statusText = "JACKPOT";
       statusClass = "win";
       jackpotsCount++;
       totalWins++;
     } 
-    // 2. Standard Win (Match prediction)
+    // 2. Standard Prediction Match
     else if (predictedType === actualResult) {
       statusText = "WIN";
       statusClass = "win";
       totalWins++;
     }
 
-    const issue = item.issueNumber || item.period || "—";
+    const issue = String(item.issueNumber || item.period || "—");
 
     return `
       <tr>
@@ -144,7 +165,6 @@ function renderHistory(historyData) {
     `;
   }).join('');
 
-  // Update Stats Cards
   const winRateElem = document.getElementById('winRate');
   const jackpotsElem = document.getElementById('jackpots');
   
@@ -152,7 +172,7 @@ function renderHistory(historyData) {
   if (jackpotsElem) jackpotsElem.innerText = jackpotsCount;
 }
 
-// Synchronized 60-second timer
+// Synchronized 60-second Timer
 function startTimer() {
   setInterval(() => {
     const now = new Date();

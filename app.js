@@ -1,209 +1,43 @@
-let currentPeriod = "";
-
-document.addEventListener("DOMContentLoaded", () => {
-  const loginForm = document.getElementById("loginForm");
-  const loginView = document.getElementById("loginView");
-  const dashboardView = document.getElementById("dashboardView");
-  const loginError = document.getElementById("loginError");
-  const logoutBtn = document.getElementById("logoutBtn");
-
-  if (loginForm) {
-    loginForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const userId = document.getElementById("userId").value.trim();
-      const password = document.getElementById("password").value.trim();
-
-      if ((userId === "demo_user" || userId === "demo") && (password === "demo_pass" || password === "demo")) {
-        loginView.classList.add("hidden");
-        dashboardView.classList.remove("hidden");
-        if (loginError) loginError.innerText = "";
-        
-        fetchGameData();
-        startTimer();
-      } else {
-        if (loginError) loginError.innerText = "Invalid User ID or Password";
-      }
-    });
-  }
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-      dashboardView.classList.add("hidden");
-      loginView.classList.remove("hidden");
-    });
-  }
-
-  if (dashboardView && !dashboardView.classList.contains("hidden")) {
-    fetchGameData();
-    startTimer();
-  }
-});
-
-// Multi-Proxy Live Data Fetcher
 async function fetchGameData() {
-  let list = [];
-  const targetApi = 'https://www.veergame38.com/api/webapi/GetNoHeaderList';
-  const payload = { typeId: 1, pageSize: 10, pageNo: 1 };
-
-  // Layer 1: Try direct backend proxy endpoint first
-  try {
-    const res = await fetch('/api/game-data');
-    const json = await res.json();
-    if (json && json.data && Array.isArray(json.data.list)) {
-      list = json.data.list;
-    } else if (Array.isArray(json.data)) {
-      list = json.data;
-    }
-  } catch (err) {
-    console.warn("Backend proxy bypassed, attempting public CORS bridges...");
-  }
-
-  // Layer 2: Primary Browser CORS Proxy (CorsProxy.io)
-  if (!list || list.length === 0) {
     try {
-      const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetApi)}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      const json = await res.json();
-      list = json.data?.list || json.data || [];
+        let response = await fetch('/api/game-data');
+        let json = await response.json();
+        
+        if (json.code === 0) {
+            updateUI(json.data, json.predictions, json.activePrediction);
+        }
     } catch (e) {
-      console.warn("Primary CORS bridge failed, trying secondary bridge...");
+        console.error("Error fetching game data:", e);
     }
-  }
-
-  // Layer 3: Secondary Browser CORS Proxy (AllOrigins Cache-Bust)
-  if (!list || list.length === 0) {
-    try {
-      const cacheBustUrl = encodeURIComponent(`${targetApi}?t=${Date.now()}`);
-      const res = await fetch(`https://api.allorigins.win/get?url=${cacheBustUrl}`);
-      const wrapper = await res.json();
-      if (wrapper && wrapper.contents) {
-        const parsed = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
-        list = parsed.data?.list || parsed.data || [];
-      }
-    } catch (e) {
-      console.error("All proxy bridges exhausted:", e);
-    }
-  }
-
-  // Render UI with fetched live data
-  if (Array.isArray(list) && list.length > 0) {
-    const latest = list[0];
-    const rawIssue = String(latest.issueNumber || latest.period || "0");
-    
-    if (rawIssue !== "0") {
-      const lastFour = parseInt(rawIssue.slice(-4), 10) + 1;
-      currentPeriod = rawIssue.slice(0, -4) + String(lastFour).padStart(4, '0');
-    }
-    
-    const periodElem = document.getElementById('period');
-    if (periodElem) periodElem.innerText = currentPeriod || rawIssue;
-
-    updatePredictionUI(list);
-    renderHistory(list);
-  }
 }
 
-// Prediction Logic
-function updatePredictionUI(historyList) {
-  if (!historyList || historyList.length < 1) return;
+function updateUI(historyList, predictions, activePred) {
+    // 1. Update Active Prediction Signal
+    let signalEl = document.querySelector('.model-signal'); // Adjust selector to match your HTML
+    let periodEl = document.querySelector('.current-period'); // Adjust selector to match your HTML
+    
+    if (activePred) {
+        if (signalEl) signalEl.innerText = activePred.predictedChoice;
+        if (periodEl) periodEl.innerText = activePred.targetPeriod;
+    }
 
-  const recent = historyList.slice(0, 5).map(item => parseInt(item.number || item.result || 0, 10));
-  const bigCount = recent.filter(n => n >= 5).length;
-  
-  let signal = "BIG";
-  let confidenceScore = 88;
-
-  if (bigCount >= 4) {
-    signal = "SMALL"; 
-    confidenceScore = 93;
-  } else if (bigCount <= 1) {
-    signal = "BIG";
-    confidenceScore = 94;
-  } else {
-    const lastNum = recent[0];
-    signal = lastNum >= 5 ? "SMALL" : "BIG";
-    confidenceScore = 85 + (lastNum % 5);
-  }
-
-  const backupNumbers = signal === "BIG" ? [7, 8] : [1, 2];
-
-  const predElem = document.getElementById('predictionType');
-  const confElem = document.getElementById('confidence');
-  const backupElem = document.getElementById('backupNumbers');
-  
-  if (predElem) predElem.innerText = signal;
-  if (confElem) confElem.innerText = `${confidenceScore}%`;
-  if (backupElem) backupElem.innerText = backupNumbers.join(', ');
+    // 2. Update Result History Table
+    let tableBody = document.querySelector('tbody'); // Adjust selector to match your table
+    if (tableBody && predictions) {
+        tableBody.innerHTML = '';
+        predictions.forEach(item => {
+            let row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${item.period}</td>
+                <td>${item.actual} (${item.number})</td>
+                <td>${item.predicted}</td>
+                <td style="color: ${item.status === 'WIN' ? '#22c55e' : '#ef4444'}; font-weight: bold;">${item.status}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
 }
 
-// History Table Renderer
-function renderHistory(historyData) {
-  const historyBody = document.getElementById('historyBody');
-  if (!historyBody) return;
-
-  let jackpotsCount = 0;
-  let totalWins = 0;
-
-  historyBody.innerHTML = historyData.slice(0, 10).map((item) => {
-    const num = parseInt(item.number || item.result || 0, 10);
-    const actualResult = num >= 5 ? 'BIG' : 'SMALL';
-    
-    const predictedType = (num % 2 === 0) ? (num >= 5 ? 'BIG' : 'SMALL') : (num < 5 ? 'SMALL' : 'BIG');
-    const backupNumbers = predictedType === 'BIG' ? [7, 8] : [1, 2];
-
-    let statusText = "LOSS";
-    let statusClass = "loss";
-
-    if (backupNumbers.includes(num)) {
-      statusText = "JACKPOT";
-      statusClass = "win";
-      jackpotsCount++;
-      totalWins++;
-    } else if (predictedType === actualResult) {
-      statusText = "WIN";
-      statusClass = "win";
-      totalWins++;
-    }
-
-    const issue = String(item.issueNumber || item.period || "—");
-
-    return `
-      <tr>
-        <td>${issue}</td>
-        <td>${num} (${actualResult})</td>
-        <td>${predictedType} [${backupNumbers.join(',')}]</td>
-        <td><span class="status ${statusClass}">${statusText}</span></td>
-      </tr>
-    `;
-  }).join('');
-
-  const winRateElem = document.getElementById('winRate');
-  const jackpotsElem = document.getElementById('jackpots');
-  
-  if (winRateElem) winRateElem.innerText = `${Math.round((totalWins / Math.min(10, historyData.length)) * 100)}%`;
-  if (jackpotsElem) jackpotsElem.innerText = jackpotsCount;
-}
-
-// 60-Second Loop Timer Engine
-function startTimer() {
-  setInterval(() => {
-    const now = new Date();
-    const secondsLeft = 60 - now.getSeconds();
-    
-    const timerElem = document.getElementById('countdown');
-    if (timerElem) {
-      timerElem.innerText = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft === 60 ? '00' : secondsLeft}`;
-    }
-
-    if (secondsLeft === 59 || secondsLeft === 60) {
-      fetchGameData();
-    }
-  }, 1000);
-  }
-  
+// Poll every 1 second for real-time updates
+setInterval(fetchGameData, 1000);
+fetchGameData();
